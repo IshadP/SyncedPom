@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pause } from 'lucide-react';
+import { Pause, Maximize2 } from 'lucide-react';
 
 // duplicating basic mode info for UI labels
 const MODES = {
@@ -8,7 +8,7 @@ const MODES = {
   long: { label: 'Long Break' },
 };
 
-const TimerDisplay = ({ mode, time, isRunning, onToggle, onModeChange, theme }) => {
+const TimerDisplay = ({ mode, time, isRunning, onToggle, onModeChange, theme, onEnterFocusMode }) => {
   const fmt = (s) => {
     const m = Math.floor(s / 60);
     const sc = Math.floor(s % 60);
@@ -16,7 +16,17 @@ const TimerDisplay = ({ mode, time, isRunning, onToggle, onModeChange, theme }) 
   };
 
   return (
-    <div className="bg-white/10 backdrop-blur-md w-full max-w-md rounded-3xl p-8 shadow-xl mb-4">
+    <div className="bg-white/10 backdrop-blur-md w-full max-w-md rounded-3xl p-8 shadow-xl mb-4 relative group">
+      
+      {/* Focus Mode Trigger */}
+      <button 
+        onClick={onEnterFocusMode}
+        className="absolute top-4 right-4 p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+        title="Enter Focus Mode"
+      >
+        <Maximize2 className="w-5 h-5" />
+      </button>
+
       <div className="flex justify-center gap-2 mb-8">
         {Object.keys(MODES).map(m => (
           <button 

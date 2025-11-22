@@ -7,6 +7,7 @@ import Header from './components/Header';
 import TimerDisplay from './components/TimerDisplay';
 import TaskList from './components/TaskList';
 import JoinModal from './components/JoinModal';
+import FocusMode from './components/FocusMode';
 import { AlertCircle } from 'lucide-react';
 
 // Define modes locally or import from a config file
@@ -22,10 +23,19 @@ export default function PomoSyncPage() {
   
   // Stats State
   const [stats, setStats] = useState({ solo: 0, group: 0 });
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  
+  // We need to lift the current task state up so we can show it in Focus Mode
+  // Normally TaskList manages its own state, but for this feature, we'll access local storage directly 
+  // or just pass a prop to TaskList to notify us. 
+  // A simpler approach for this modular structure: store the *current* active task in a shared state or read from local storage here too.
+  // For simplicity/robustness without refactoring everything to Context, we'll read the first uncompleted task from local storage
+  // whenever we enter focus mode.
+  const [currentTask, setCurrentTask] = useState(null);
 
   // Load and Reset Stats logic (Runs on Mount)
   useEffect(() => {
-    const today = new Date().toDateString(); // "Mon Nov 22 2025"
+    const today = new Date().toDateString();
     const savedData = localStorage.getItem('pomo_stats_daily');
     
     let currentStats = { solo: 0, group: 0, date: today };
@@ -33,20 +43,14 @@ export default function PomoSyncPage() {
     if (savedData) {
       try {
         const parsed = JSON.parse(savedData);
-        // If the stored date matches today, restore the counts
         if (parsed.date === today) {
           currentStats = parsed;
-        } else {
-          // If dates differ, we implicitly "reset" by keeping the defaults (0,0) 
-          // and overwriting the storage with today's date below
-          console.log("New day detected, resetting stats.");
         }
       } catch (e) {
         console.error("Error parsing stats", e);
       }
     }
     
-    // Sync state and storage
     setStats({ solo: currentStats.solo, group: currentStats.group });
     localStorage.setItem('pomo_stats_daily', JSON.stringify(currentStats));
   }, []);
@@ -60,6 +64,15 @@ export default function PomoSyncPage() {
         group: isGroupSession ? prev.group + 1 : prev.group,
         date: today
       };
+      
+      const storedData = localStorage.getItem('pomo_stats_daily');
+      if (storedData) {
+        const parsed = JSON.parse(storedData);
+        if (parsed.date !== today) {
+           newStats.solo = isGroupSession ? 0 : 1;
+           newStats.group = isGroupSession ? 1 : 0;
+        }
+      }
       
       localStorage.setItem('pomo_stats_daily', JSON.stringify(newStats));
       return { solo: newStats.solo, group: newStats.group };
@@ -88,6 +101,18 @@ export default function PomoSyncPage() {
     }
   };
 
+  const handleEnterFocusMode = () => {
+    // Fetch current active task
+    const savedTasks = localStorage.getItem('pomo_tasks');
+    if (savedTasks) {
+      const parsed = JSON.parse(savedTasks);
+      // Find first uncompleted task
+      const active = parsed.find((t: any) => !t.completed);
+      setCurrentTask(active || null);
+    }
+    setIsFocusMode(true);
+  };
+
   return (
     <div 
       className={`min-h-screen transition-colors duration-500 ease-out ${currentTheme.color} text-white font-sans flex flex-col`}
@@ -107,6 +132,7 @@ export default function PomoSyncPage() {
           isRunning={timer.isRunning}
           onToggle={timer.toggle}
           onModeChange={timer.changeMode}
+          onEnterFocusMode={handleEnterFocusMode}
         />
         
         <TaskList activeColor={currentTheme.color} stats={stats} />
@@ -119,6 +145,17 @@ export default function PomoSyncPage() {
           </div>
         )}
       </main>
+
+      {/* Focus Mode Overlay */}
+      <FocusMode 
+        isOpen={isFocusMode}
+        onClose={() => setIsFocusMode(false)}
+        timeLeft={timer.timeLeft}
+        isRunning={timer.isRunning}
+        onToggleTimer={timer.toggle}
+        currentTask={currentTask}
+        modeLabel={currentTheme.label}
+      />
 
       {/* Join Session Modal */}
       <JoinModal 
