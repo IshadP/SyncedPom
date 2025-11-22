@@ -1,56 +1,101 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const MODES = {
+const DEFAULT_MODES = {
   pomodoro: { label: 'Pomodoro', time: 25 * 60 },
   short: { label: 'Short Break', time: 5 * 60 },
   long: { label: 'Long Break', time: 15 * 60 },
 };
 
-/**
- * Handles Timer Logic.
- * Agnostic of UI, purely handles time calculations and state management.
- */
 export const useTimer = (backend, onComplete) => {
+  // 1. Settings State
+  // Initialize from localStorage if available, otherwise use defaults
+  const [localSettings, setLocalSettings] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('pomo_settings');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error("Failed to parse saved settings:", e);
+        }
+      }
+    }
+    return DEFAULT_MODES;
+  });
+
+  const modes = backend.sessionData?.settings || localSettings;
+
   const [localMode, setLocalMode] = useState('pomodoro');
-  const [localTime, setLocalTime] = useState(MODES.pomodoro.time);
+  // Initialize localTime based on the current mode's time setting
+  const [localTime, setLocalTime] = useState(() => modes['pomodoro'].time);
   const [localIsRunning, setLocalIsRunning] = useState(false);
   const audioRef = useRef(null);
 
-  // Determine source of truth (Remote vs Local)
   const isSynced = !!backend.sessionId;
-  // If synced, trust the session mode, otherwise use local
-  const mode = backend.sessionData?.mode || localMode;
+  const currentMode = backend.sessionData?.mode || localMode;
 
-  // Calculate current time based on backend state or local state
+  // Calculate Time Left
   const calculateTimeLeft = useCallback(() => {
     if (isSynced && backend.sessionData) {
       const data = backend.sessionData;
-      // If the timer is running remotely, calculate remaining time based on the target end_time
       if (data.status === 'running' && data.end_time) {
         const end = new Date(data.end_time).getTime();
         const now = new Date().getTime();
         return Math.max(0, Math.floor((end - now) / 1000));
       }
-      // Otherwise, just show the stored remaining time
       return data.remaining;
     }
     return localTime;
   }, [isSynced, backend.sessionData, localTime]);
 
-  const [displayTime, setDisplayTime] = useState(calculateTimeLeft());
-  
-  const isRunning = isSynced 
-    ? backend.sessionData?.status === 'running' 
-    : localIsRunning;
+  // Initialize display time
+  const [displayTime, setDisplayTime] = useState(() => {
+    if (isSynced && backend.sessionData) {
+      // Use the helper logic directly here for initialization if needed, 
+      // or rely on the effect to sync it up immediately after.
+      // For safer initialization during SSR/hydration, calculateTimeLeft is safer.
+      // calculateTimeLeft depends on props/state so we can't call it directly in useState initializer cleanly without wrapper
+      // But we can replicate the logic simply or default to localTime.
+      return localTime; 
+    }
+    return localTime;
+  });
 
-  // --- EFFECT 1: SYNC STATE ---
-  // Only update displayTime when the calculated source changes (e.g. mode change, backend update)
+  const isRunning = isSynced ? backend.sessionData?.status === 'running' : localIsRunning;
+
+  // --- EFFECT 1: SYNC WITH BACKEND ---
+  // Only runs when backend data changes.
   useEffect(() => {
-    setDisplayTime(calculateTimeLeft());
-  }, [calculateTimeLeft]);
+    if (isSynced && backend.sessionData) {
+      const getRemoteTime = (data) => {
+        if (data.status === 'running' && data.end_time) {
+          const end = new Date(data.end_time).getTime();
+          const now = new Date().getTime();
+          return Math.max(0, Math.floor((end - now) / 1000));
+        }
+        return data.remaining;
+      };
+      
+      const newTime = getRemoteTime(backend.sessionData);
+      setDisplayTime(prev => Math.abs(prev - newTime) > 1 ? newTime : prev);
+    }
+  }, [isSynced, backend.sessionData]);
 
-  // --- EFFECT 2: TIMER TICK ---
-  // Handles the countdown interval separately to avoid infinite loops
+  // --- EFFECT 2: SYNC WITH LOCAL SETTINGS ---
+  // Only runs when NOT synced and local settings/mode change
+  useEffect(() => {
+    if (!isSynced) {
+      if (!localIsRunning) {
+         // If the settings for the current mode change, update the time
+         // This handles both mode switching and updating the duration in settings
+         const targetTime = modes[currentMode].time;
+         setLocalTime(targetTime);
+         setDisplayTime(targetTime);
+      }
+    }
+  }, [isSynced, currentMode, modes, localIsRunning]);
+
+  // --- EFFECT 3: TIMER TICK & LOCAL BACKUP ---
   useEffect(() => {
     let interval;
     if (isRunning && displayTime > 0) {
@@ -59,12 +104,9 @@ export const useTimer = (backend, onComplete) => {
           if (prev <= 1) {
             // Timer Finished
             if (audioRef.current) audioRef.current.play().catch(() => {});
-            
-            // Trigger completion callback
             if (onComplete) onComplete(isSynced);
             
             if (isSynced) {
-              // Pause session and reset to 0
               backend.updateSession({ status: 'paused', remaining: 0, end_time: null });
             } else {
               setLocalIsRunning(false);
@@ -75,37 +117,25 @@ export const useTimer = (backend, onComplete) => {
         });
       }, 1000);
     } else if (displayTime === 0 && isRunning) {
-       // Safety stop if we hit 0
        if (!isSynced) setLocalIsRunning(false);
     }
 
-    // Update localTime reference while running so if we disconnect/leave, 
-    // we don't jump back to the time before we joined.
-    // We check for > 1 second difference to avoid unnecessary state updates on every tick
-    if (displayTime > 0 && Math.abs(displayTime - localTime) > 1) {
+    // Sync displayTime back to localTime for persistence during pauses/navigation
+    if (Math.abs(displayTime - localTime) > 0) {
        setLocalTime(displayTime);
     }
 
     return () => clearInterval(interval);
   }, [isRunning, displayTime, isSynced, backend, onComplete, localTime]);
 
-  // User Actions
+  // Actions
   const toggle = () => {
     if (isSynced) {
       if (isRunning) {
-        // Pause: Save current remaining time
-        backend.updateSession({
-          status: 'paused',
-          remaining: displayTime,
-          end_time: null
-        });
+        backend.updateSession({ status: 'paused', remaining: displayTime, end_time: null });
       } else {
-        // Start: Calculate end time
         const endTime = new Date(Date.now() + displayTime * 1000).toISOString();
-        backend.updateSession({
-          status: 'running',
-          end_time: endTime
-        });
+        backend.updateSession({ status: 'running', end_time: endTime });
       }
     } else {
       setLocalIsRunning(!localIsRunning);
@@ -113,7 +143,7 @@ export const useTimer = (backend, onComplete) => {
   };
 
   const changeMode = (newMode) => {
-    const newTime = MODES[newMode].time;
+    const newTime = modes[newMode].time;
     if (isSynced) {
       backend.updateSession({
         mode: newMode,
@@ -129,12 +159,35 @@ export const useTimer = (backend, onComplete) => {
     }
   };
 
+  const updateSettings = (newSettings) => {
+    if (isSynced) {
+        const currentModeSettings = newSettings[currentMode];
+        backend.updateSession({
+            settings: newSettings,
+            remaining: currentModeSettings.time,
+            status: 'paused',
+            end_time: null
+        });
+    } else {
+        setLocalSettings(newSettings);
+        // Persist to local storage
+        localStorage.setItem('pomo_settings', JSON.stringify(newSettings));
+        
+        // Reset timer immediately to reflect new settings
+        setLocalTime(newSettings[localMode].time);
+        setDisplayTime(newSettings[localMode].time);
+        setLocalIsRunning(false);
+    }
+  };
+
   return {
-    mode,
+    mode: currentMode,
     timeLeft: displayTime,
     isRunning,
     toggle,
     changeMode,
-    audioRef
+    audioRef,
+    modes,
+    updateSettings
   };
 };

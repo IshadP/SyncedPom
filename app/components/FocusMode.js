@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { Minimize2, Pause, Play } from 'lucide-react';
 
 const FocusMode = ({ 
   isOpen, 
@@ -34,10 +33,10 @@ const FocusMode = ({
       {/* Exit Button */}
       <button 
         onClick={onClose}
-        className="absolute top-6 right-6 p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all"
+        className="absolute top-6 right-6 p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-all flex items-center justify-center"
         title="Exit Focus Mode (Esc)"
       >
-        <Minimize2 className="w-8 h-8" />
+        <span className="material-symbols-outlined text-4xl">close_fullscreen</span>
       </button>
 
       {/* Current Task */}
@@ -58,13 +57,11 @@ const FocusMode = ({
       {/* Minimal Controls */}
       <button 
         onClick={onToggleTimer}
-        className="group p-6 rounded-full bg-white/10 hover:bg-white/20 transition-all backdrop-blur-sm"
+        className="group p-6 rounded-full bg-white/10 hover:bg-white/20 transition-all backdrop-blur-sm flex items-center justify-center"
       >
-        {isRunning ? (
-          <Pause className="w-12 h-12 fill-current text-white" />
-        ) : (
-          <Play className="w-12 h-12 fill-current text-white ml-1" />
-        )}
+        <span className="material-symbols-outlined text-6xl fill-current text-white">
+          {isRunning ? 'pause' : 'play_arrow'}
+        </span>
       </button>
 
       <div className="absolute bottom-8 text-white/20 text-sm font-medium">

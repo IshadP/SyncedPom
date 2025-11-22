@@ -1,18 +1,23 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
+// Default settings to use if none provided
+const DEFAULT_SETTINGS = {
+  pomodoro: { label: 'Pomodoro', time: 25 * 60 },
+  short: { label: 'Short Break', time: 5 * 60 },
+  long: { label: 'Long Break', time: 15 * 60 },
+};
+
 export const useSupabaseSession = () => {
   const [sessionId, setSessionId] = useState(null);
   const [sessionData, setSessionData] = useState(null);
   const [error, setError] = useState(null);
-  // Generate a random user ID for this session (or use auth.user.id if you have auth set up)
   const [userId] = useState(() => 'user-' + Math.random().toString(36).substr(2, 9));
 
   // Subscribe to changes
   useEffect(() => {
     if (!sessionId || !supabase) return;
 
-    // 1. Initial Fetch
     const fetchSession = async () => {
       const { data, error } = await supabase
         .from('sessions')
@@ -25,7 +30,6 @@ export const useSupabaseSession = () => {
 
     fetchSession();
 
-    // 2. Realtime Subscription
     const channel = supabase
       .channel(`session-${sessionId}`)
       .on(
@@ -44,9 +48,10 @@ export const useSupabaseSession = () => {
     };
   }, [sessionId]);
 
-  // --- Actions ---
+  // Actions
 
-  const createSession = async (initialMode, initialTime) => {
+  // Now accepts a settings object
+  const createSession = async (initialMode, initialTime, settings = DEFAULT_SETTINGS) => {
     const newId = Math.random().toString(36).substring(2, 8).toUpperCase();
     
     const newSession = {
@@ -56,6 +61,7 @@ export const useSupabaseSession = () => {
       status: 'paused',
       remaining: initialTime,
       end_time: null,
+      settings: settings, // Store the custom settings in the DB
       created_at: new Date().toISOString()
     };
 
@@ -108,6 +114,7 @@ export const useSupabaseSession = () => {
     createSession,
     joinSession,
     updateSession,
-    leaveSession
+    leaveSession,
+    isHost: sessionData?.host_id === userId // Helper to check permissions
   };
 };

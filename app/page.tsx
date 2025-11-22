@@ -8,32 +8,23 @@ import TimerDisplay from './components/TimerDisplay';
 import TaskList from './components/TaskList';
 import JoinModal from './components/JoinModal';
 import FocusMode from './components/FocusMode';
-import { AlertCircle } from 'lucide-react';
+import SettingsModal from './components/SettingsModal';
 
-// Define modes locally or import from a config file
-const MODES: Record<string, { label: string; time: number; color: string; buttonColor: string }> = {
-  pomodoro: { label: 'Pomodoro', time: 25 * 60, color: 'bg-[#ba4949]', buttonColor: 'text-[#ba4949]' },
-  short: { label: 'Short Break', time: 5 * 60, color: 'bg-[#38858a]', buttonColor: 'text-[#38858a]' },
-  long: { label: 'Long Break', time: 15 * 60, color: 'bg-[#397097]', buttonColor: 'text-[#397097]' },
+// Initial fallback for theme colors (times now come from useTimer)
+const THEME_COLORS: Record<string, { color: string; buttonColor: string }> = {
+  pomodoro: { color: 'bg-[#ba4949]', buttonColor: 'text-[#ba4949]' },
+  short: { color: 'bg-[#38858a]', buttonColor: 'text-[#38858a]' },
+  long: { color: 'bg-[#397097]', buttonColor: 'text-[#397097]' },
 };
 
 export default function PomoSyncPage() {
-  // 1. Initialize Hooks
   const backend = useSupabaseSession();
   
-  // Stats State
   const [stats, setStats] = useState({ solo: 0, group: 0 });
   const [isFocusMode, setIsFocusMode] = useState(false);
-  
-  // We need to lift the current task state up so we can show it in Focus Mode
-  // Normally TaskList manages its own state, but for this feature, we'll access local storage directly 
-  // or just pass a prop to TaskList to notify us. 
-  // A simpler approach for this modular structure: store the *current* active task in a shared state or read from local storage here too.
-  // For simplicity/robustness without refactoring everything to Context, we'll read the first uncompleted task from local storage
-  // whenever we enter focus mode.
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [currentTask, setCurrentTask] = useState(null);
 
-  // Load and Reset Stats logic (Runs on Mount)
   useEffect(() => {
     const today = new Date().toDateString();
     const savedData = localStorage.getItem('pomo_stats_daily');
@@ -55,7 +46,6 @@ export default function PomoSyncPage() {
     localStorage.setItem('pomo_stats_daily', JSON.stringify(currentStats));
   }, []);
 
-  // Handler for timer completion
   const onTimerComplete = useCallback((isGroupSession: boolean) => {
     setStats(prev => {
       const today = new Date().toDateString();
@@ -79,34 +69,33 @@ export default function PomoSyncPage() {
     });
   }, []);
 
+  // useTimer now manages the mode settings internally
   const timer = useTimer(backend, onTimerComplete);
   
-  // 2. Local UI State
   const [isJoining, setIsJoining] = useState(false);
+  const [joinCode, setJoinCode] = useState('');
   
-  // 3. Derived State
-  const currentTheme = MODES[timer.mode] || MODES.pomodoro;
+  const currentTheme = THEME_COLORS[timer.mode] || THEME_COLORS.pomodoro;
 
-  // 4. Handlers
   const handleCreate = async () => {
-    await backend.createSession('pomodoro', MODES.pomodoro.time);
+    // Pass current local settings to the new session
+    await backend.createSession('pomodoro', timer.modes.pomodoro.time, timer.modes);
   };
 
   const handleJoin = async (code: string) => {
     const success = await backend.joinSession(code);
     if (success) {
       setIsJoining(false);
+      setJoinCode('');
     } else {
       alert("Session not found! Please check the code and try again.");
     }
   };
 
   const handleEnterFocusMode = () => {
-    // Fetch current active task
     const savedTasks = localStorage.getItem('pomo_tasks');
     if (savedTasks) {
       const parsed = JSON.parse(savedTasks);
-      // Find first uncompleted task
       const active = parsed.find((t: any) => !t.completed);
       setCurrentTask(active || null);
     }
@@ -122,31 +111,41 @@ export default function PomoSyncPage() {
         onCreate={handleCreate}
         onJoin={() => setIsJoining(true)}
         onLeave={backend.leaveSession}
+        onOpenSettings={() => setIsSettingsOpen(true)} // Added here
       />
 
       <main className="flex-1 flex flex-col items-center p-4 w-full">
         <TimerDisplay 
           theme={currentTheme}
           mode={timer.mode}
+          modes={timer.modes} // Pass dynamic modes
           time={timer.timeLeft}
           isRunning={timer.isRunning}
           onToggle={timer.toggle}
           onModeChange={timer.changeMode}
           onEnterFocusMode={handleEnterFocusMode}
+          // onOpenSettings removed from here
         />
         
         <TaskList activeColor={currentTheme.color} stats={stats} />
 
-        {/* Optional: Error Toast */}
         {backend.error && (
           <div className="fixed bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
-            <AlertCircle className="w-4 h-4" />
+            <span className="material-symbols-outlined text-sm">error</span>
             <span>{backend.error}</span>
           </div>
         )}
       </main>
 
-      {/* Focus Mode Overlay */}
+      <SettingsModal 
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        currentSettings={timer.modes}
+        onSave={timer.updateSettings}
+        isHost={backend.isHost}
+        isSolo={!backend.sessionId}
+      />
+
       <FocusMode 
         isOpen={isFocusMode}
         onClose={() => setIsFocusMode(false)}
@@ -154,17 +153,15 @@ export default function PomoSyncPage() {
         isRunning={timer.isRunning}
         onToggleTimer={timer.toggle}
         currentTask={currentTask}
-        modeLabel={currentTheme.label}
+        modeLabel={timer.modes[timer.mode].label}
       />
 
-      {/* Join Session Modal */}
       <JoinModal 
         isOpen={isJoining}
         onClose={() => setIsJoining(false)}
         onJoin={handleJoin}
       />
 
-      {/* Audio Element for Timer Alarm */}
       <audio 
         ref={timer.audioRef} 
         src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" 

@@ -1,5 +1,4 @@
 import React from 'react';
-import { Pause, Maximize2 } from 'lucide-react';
 
 // duplicating basic mode info for UI labels
 const MODES = {
@@ -21,10 +20,10 @@ const TimerDisplay = ({ mode, time, isRunning, onToggle, onModeChange, theme, on
       {/* Focus Mode Trigger */}
       <button 
         onClick={onEnterFocusMode}
-        className="absolute top-4 right-4 p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+        className="absolute top-4 right-4 p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center"
         title="Enter Focus Mode"
       >
-        <Maximize2 className="w-5 h-5" />
+        <span className="material-symbols-outlined">fullscreen</span>
       </button>
 
       <div className="flex justify-center gap-2 mb-8">
@@ -52,7 +51,7 @@ const TimerDisplay = ({ mode, time, isRunning, onToggle, onModeChange, theme, on
         </button>
         {isRunning && (
           <button onClick={onToggle} className="h-16 w-16 bg-white/20 rounded-2xl flex items-center justify-center hover:bg-white/30 transition-colors">
-            <Pause className="w-8 h-8" />
+            <span className="material-symbols-outlined text-3xl">pause</span>
           </button>
         )}
       </div>

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, CornerDownLeft } from 'lucide-react';
 
 const QuickAddModal = ({ isOpen, onClose, onAdd }) => {
   const [input, setInput] = useState('');
@@ -27,11 +26,10 @@ const QuickAddModal = ({ isOpen, onClose, onAdd }) => {
     e.preventDefault();
     if (!input.trim()) return;
 
-    // Clean title by removing the session command (optional, keeps title clean)
     const cleanTitle = input.replace(/(?:^|\s)(\d+)s(?:\s|$)/, ' ').trim();
     
     onAdd({
-      title: cleanTitle || input, // Fallback to raw input if cleaning removes everything
+      title: cleanTitle || input,
       sessions: sessions
     });
     
@@ -40,30 +38,56 @@ const QuickAddModal = ({ isOpen, onClose, onAdd }) => {
     onClose();
   };
 
+  // Helper to render highlighted text
+  const renderHighlightedInput = () => {
+    const parts = input.split(/(\d+s)/g);
+    
+    return parts.map((part, index) => {
+      if (/^\d+s$/.test(part)) {
+        return <span key={index} className="text-[#ba4949] font-bold">{part}</span>;
+      }
+      return <span key={index}>{part}</span>;
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-[15vh]">
       <div className="bg-[#1e1e1e] w-full max-w-xl rounded-xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-4 border border-white/10">
         <form onSubmit={handleSubmit} className="p-4">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Task name (e.g. 'Read Chapter 1 2s')"
-            className="w-full bg-transparent text-white text-lg placeholder:text-gray-500 focus:outline-none mb-4"
-          />
+          
+          {/* Highlighting Container */}
+          <div className="relative w-full mb-4">
+            <div 
+              className="absolute inset-0 pointer-events-none whitespace-pre-wrap text-lg font-medium"
+              aria-hidden="true"
+            >
+              <div className="text-white opacity-100">
+                 {renderHighlightedInput()}
+              </div>
+            </div>
+
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Task name (e.g. 'Read Chapter 1 3s')"
+              className="w-full bg-transparent text-transparent caret-white text-lg font-medium placeholder:text-gray-600 focus:outline-none relative z-10"
+              spellCheck="false"
+              autoComplete="off"
+            />
+          </div>
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {/* Session Badge */}
               <div className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-all ${
                 sessions > 0 
-                  ? 'bg-blue-500/20 text-blue-300' 
+                  ? 'bg-[#ba4949]/20 text-[#ba4949]' 
                   : 'bg-white/5 text-gray-500'
               }`}>
-                <Clock className="w-3 h-3" />
+                <span className="material-symbols-outlined text-xs">schedule</span>
                 <span>{sessions > 0 ? `${sessions} Sessions needed` : 'Sessions'}</span>
               </div>
             </div>
@@ -82,14 +106,13 @@ const QuickAddModal = ({ isOpen, onClose, onAdd }) => {
                 className="px-4 py-1.5 bg-[#ba4949] hover:bg-[#a13e3e] text-white text-sm font-bold rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
               >
                 Add task
-                <CornerDownLeft className="w-3 h-3 opacity-70" />
+                <span className="material-symbols-outlined text-sm opacity-70">keyboard_return</span>
               </button>
             </div>
           </div>
         </form>
       </div>
       
-      {/* Click backdrop to close */}
       <div className="absolute inset-0 -z-10" onClick={onClose} />
     </div>
   );

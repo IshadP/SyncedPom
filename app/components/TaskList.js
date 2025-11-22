@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Trash2, Plus, Clock } from 'lucide-react';
 import QuickAddModal from './QuickAddModal';
 
 const TaskList = ({ activeColor }) => {
@@ -78,7 +77,7 @@ const TaskList = ({ activeColor }) => {
             <div className="text-lg font-medium mt-1">{tasks[0].title}</div>
             {tasks[0].sessions > 0 && (
               <div className="flex items-center justify-center gap-1 mt-2 text-sm opacity-75">
-                <Clock className="w-3 h-3" />
+                <span className="material-symbols-outlined text-sm">schedule</span>
                 <span>{tasks[0].sessions} sessions estimated</span>
               </div>
             )}
@@ -89,20 +88,20 @@ const TaskList = ({ activeColor }) => {
           {tasks.map(t => (
             <div key={t.id} className="group bg-white p-4 rounded-lg flex justify-between items-center shadow-sm border-l-4 border-transparent hover:border-gray-300 transition-all">
               <div className="flex items-center gap-3 flex-1 min-w-0">
-                <button onClick={() => toggle(t.id)} className={`${t.completed ? 'text-red-400' : 'text-gray-200 hover:text-gray-300'} flex-shrink-0`}>
-                  <CheckCircle className="w-6 h-6 fill-current" />
+                <button onClick={() => toggle(t.id)} className={`${t.completed ? 'text-red-400' : 'text-gray-200 hover:text-gray-300'} flex-shrink-0 flex items-center`}>
+                  <span className="material-symbols-outlined fill-current">{t.completed ? 'check_circle' : 'radio_button_unchecked'}</span>
                 </button>
                 <div className="flex flex-col truncate">
                   <span className={`font-medium text-gray-700 truncate ${t.completed ? 'line-through text-gray-400' : ''}`}>{t.title}</span>
                   {t.sessions > 0 && !t.completed && (
                     <span className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                      <Clock className="w-3 h-3" /> {t.sessions}
+                      <span className="material-symbols-outlined text-[10px]">schedule</span> {t.sessions}
                     </span>
                   )}
                 </div>
               </div>
-              <button onClick={() => remove(t.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0">
-                <Trash2 className="w-4 h-4" />
+              <button onClick={() => remove(t.id)} className="text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity ml-2 flex-shrink-0 flex items-center">
+                <span className="material-symbols-outlined">delete</span>
               </button>
             </div>
           ))}
@@ -124,7 +123,7 @@ const TaskList = ({ activeColor }) => {
           </form>
         ) : (
           <button onClick={() => setIsAdding(true)} className="w-full mt-4 py-4 border-2 border-dashed border-white/30 bg-black/10 rounded-xl flex items-center justify-center gap-2 font-bold text-lg hover:bg-black/20 hover:border-white/40 transition-all">
-            <Plus className="w-5 h-5" /> Add Task
+            <span className="material-symbols-outlined">add</span> Add Task
           </button>
         )}
       </div>
