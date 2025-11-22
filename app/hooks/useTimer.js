@@ -10,7 +10,7 @@ const MODES = {
  * Handles Timer Logic.
  * Agnostic of UI, purely handles time calculations and state management.
  */
-export const useTimer = (backend) => {
+export const useTimer = (backend, onComplete) => {
   const [localMode, setLocalMode] = useState('pomodoro');
   const [localTime, setLocalTime] = useState(MODES.pomodoro.time);
   const [localIsRunning, setLocalIsRunning] = useState(false);
@@ -21,7 +21,7 @@ export const useTimer = (backend) => {
   // If synced, trust the session mode, otherwise use local
   const mode = backend.sessionData?.mode || localMode;
 
-  // Calculate current time
+  // Calculate current time based on backend state or local state
   const calculateTimeLeft = useCallback(() => {
     if (isSynced && backend.sessionData) {
       const data = backend.sessionData;
@@ -43,10 +43,15 @@ export const useTimer = (backend) => {
     ? backend.sessionData?.status === 'running' 
     : localIsRunning;
 
-  // Timer Tick Effect
+  // --- EFFECT 1: SYNC STATE ---
+  // Only update displayTime when the calculated source changes (e.g. mode change, backend update)
   useEffect(() => {
     setDisplayTime(calculateTimeLeft());
+  }, [calculateTimeLeft]);
 
+  // --- EFFECT 2: TIMER TICK ---
+  // Handles the countdown interval separately to avoid infinite loops
+  useEffect(() => {
     let interval;
     if (isRunning && displayTime > 0) {
       interval = setInterval(() => {
@@ -54,6 +59,9 @@ export const useTimer = (backend) => {
           if (prev <= 1) {
             // Timer Finished
             if (audioRef.current) audioRef.current.play().catch(() => {});
+            
+            // Trigger completion callback
+            if (onComplete) onComplete(isSynced);
             
             if (isSynced) {
               // Pause session and reset to 0
@@ -71,11 +79,15 @@ export const useTimer = (backend) => {
        if (!isSynced) setLocalIsRunning(false);
     }
 
-    // Keep local state in sync just in case we disconnect
-    if (!isSynced) setLocalTime(displayTime);
+    // Update localTime reference while running so if we disconnect/leave, 
+    // we don't jump back to the time before we joined.
+    // We check for > 1 second difference to avoid unnecessary state updates on every tick
+    if (displayTime > 0 && Math.abs(displayTime - localTime) > 1) {
+       setLocalTime(displayTime);
+    }
 
     return () => clearInterval(interval);
-  }, [isRunning, isSynced, backend.sessionData, calculateTimeLeft, backend, displayTime]);
+  }, [isRunning, displayTime, isSynced, backend, onComplete, localTime]);
 
   // User Actions
   const toggle = () => {

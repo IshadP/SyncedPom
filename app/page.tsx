@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSupabaseSession } from './hooks/useSupabaseSession';
 import { useTimer } from './hooks/useTimer';
 import Header from './components/Header';
@@ -19,18 +19,63 @@ const MODES: Record<string, { label: string; time: number; color: string; button
 export default function PomoSyncPage() {
   // 1. Initialize Hooks
   const backend = useSupabaseSession();
-  const timer = useTimer(backend);
+  
+  // Stats State
+  const [stats, setStats] = useState({ solo: 0, group: 0 });
+
+  // Load and Reset Stats logic (Runs on Mount)
+  useEffect(() => {
+    const today = new Date().toDateString(); // "Mon Nov 22 2025"
+    const savedData = localStorage.getItem('pomo_stats_daily');
+    
+    let currentStats = { solo: 0, group: 0, date: today };
+
+    if (savedData) {
+      try {
+        const parsed = JSON.parse(savedData);
+        // If the stored date matches today, restore the counts
+        if (parsed.date === today) {
+          currentStats = parsed;
+        } else {
+          // If dates differ, we implicitly "reset" by keeping the defaults (0,0) 
+          // and overwriting the storage with today's date below
+          console.log("New day detected, resetting stats.");
+        }
+      } catch (e) {
+        console.error("Error parsing stats", e);
+      }
+    }
+    
+    // Sync state and storage
+    setStats({ solo: currentStats.solo, group: currentStats.group });
+    localStorage.setItem('pomo_stats_daily', JSON.stringify(currentStats));
+  }, []);
+
+  // Handler for timer completion
+  const onTimerComplete = useCallback((isGroupSession: boolean) => {
+    setStats(prev => {
+      const today = new Date().toDateString();
+      const newStats = {
+        solo: isGroupSession ? prev.solo : prev.solo + 1,
+        group: isGroupSession ? prev.group + 1 : prev.group,
+        date: today
+      };
+      
+      localStorage.setItem('pomo_stats_daily', JSON.stringify(newStats));
+      return { solo: newStats.solo, group: newStats.group };
+    });
+  }, []);
+
+  const timer = useTimer(backend, onTimerComplete);
   
   // 2. Local UI State
   const [isJoining, setIsJoining] = useState(false);
   
   // 3. Derived State
-  // Fallback to pomodoro theme if mode is undefined during loading/transitions
   const currentTheme = MODES[timer.mode] || MODES.pomodoro;
 
   // 4. Handlers
   const handleCreate = async () => {
-    // Initial creation defaults to Pomodoro mode
     await backend.createSession('pomodoro', MODES.pomodoro.time);
   };
 
@@ -64,7 +109,7 @@ export default function PomoSyncPage() {
           onModeChange={timer.changeMode}
         />
         
-        <TaskList activeColor={currentTheme.color} />
+        <TaskList activeColor={currentTheme.color} stats={stats} />
 
         {/* Optional: Error Toast */}
         {backend.error && (
