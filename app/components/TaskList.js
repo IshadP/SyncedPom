@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import QuickAddModal from './QuickAddModal';
 
-const TaskList = ({ activeColor }) => {
+// Added stats prop here
+const TaskList = ({ activeColor, stats }) => {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [isAdding, setIsAdding] = useState(false);
@@ -126,6 +127,19 @@ const TaskList = ({ activeColor }) => {
             <span className="material-symbols-outlined">add</span> Add Task
           </button>
         )}
+
+        {/* Session Stats Footer */}
+        <div className="mt-8 pt-6 border-t border-white/10 flex justify-center items-center gap-8 text-white/70">
+          <div className="text-center">
+            <div className="text-2xl font-bold leading-none">{stats?.solo || 0}</div>
+            <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Solo Sessions</div>
+          </div>
+          <div className="w-px h-8 bg-white/10"></div>
+          <div className="text-center">
+            <div className="text-2xl font-bold leading-none">{stats?.group || 0}</div>
+            <div className="text-[10px] uppercase tracking-widest opacity-60 mt-1">Group Sessions</div>
+          </div>
+        </div>
       </div>
 
       <QuickAddModal 

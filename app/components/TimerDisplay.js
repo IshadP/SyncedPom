@@ -1,39 +1,52 @@
 import React from 'react';
 
-// duplicating basic mode info for UI labels
-const MODES = {
-  pomodoro: { label: 'Pomodoro' },
-  short: { label: 'Short Break' },
-  long: { label: 'Long Break' },
-};
-
-const TimerDisplay = ({ mode, time, isRunning, onToggle, onModeChange, theme, onEnterFocusMode }) => {
+const TimerDisplay = ({ 
+  mode, 
+  time, 
+  isRunning, 
+  onToggle, 
+  onModeChange, 
+  theme, 
+  onEnterFocusMode, 
+  modes = {} // Add modes prop with default to fix type error
+}) => {
+  
   const fmt = (s) => {
     const m = Math.floor(s / 60);
     const sc = Math.floor(s % 60);
     return `${m < 10 ? '0'+m : m}:${sc < 10 ? '0'+sc : sc}`;
   };
 
+  // Fallback if modes object is empty (prevents crash during initial load)
+  const displayModes = (modes && Object.keys(modes).length > 0) ? modes : {
+    pomodoro: { label: 'Pomodoro' },
+    short: { label: 'Short Break' },
+    long: { label: 'Long Break' },
+  };
+
   return (
     <div className="bg-white/10 backdrop-blur-md w-full max-w-md rounded-3xl p-8 shadow-xl mb-4 relative group">
       
-      {/* Focus Mode Trigger */}
-      <button 
-        onClick={onEnterFocusMode}
-        className="absolute top-4 right-4 p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center"
-        title="Enter Focus Mode"
-      >
-        <span className="material-symbols-outlined">fullscreen</span>
-      </button>
+      {/* Top Right Actions Container */}
+      <div className="absolute top-4 right-4 flex gap-1">
+        {/* Focus Mode Trigger - removed opacity-0 to keep it visible */}
+        <button 
+            onClick={onEnterFocusMode}
+            className="p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-lg transition-all flex items-center justify-center"
+            title="Enter Focus Mode"
+        >
+            <span className="material-symbols-outlined">fullscreen</span>
+        </button>
+      </div>
 
       <div className="flex justify-center gap-2 mb-8">
-        {Object.keys(MODES).map(m => (
+        {Object.keys(displayModes).map(m => (
           <button 
             key={m} 
             onClick={() => onModeChange(m)}
             className={`px-4 py-1 rounded-full text-sm font-bold transition-all ${mode === m ? 'bg-black/20' : 'hover:bg-black/10'}`}
           >
-            {MODES[m].label}
+            {displayModes[m].label}
           </button>
         ))}
       </div>
